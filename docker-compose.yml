@@ -38,9 +38,13 @@ services:
     restart: always
     ports:
       - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - .:/workspace
     env_file:
       - .env
     environment:
+      - PYTHONPATH=/app:/workspace
       - POSTGRES_HOST=postgres
       - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-bats_user}:${POSTGRES_PASSWORD:-bats_password}@postgres:5432/${POSTGRES_DB:-bats_db}
       - REDIS_HOST=redis
