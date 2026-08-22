@@ -2,6 +2,7 @@ from app.schemas.health import HealthResponse
 from app.schemas.signal import SignalDirection, SignalDurationUnit, TradingSignalCreate, TradingSignalResponse
 from app.schemas.candle import CandleCreate, CandleResponse
 from app.schemas.simulator import SimulatorTradeRequest, SimulatorTradeResponse, SimulatorStatsResponse, DemoSimulationRun, TradeDirection, TradeOutcome
+from app.schemas.backtest import BacktestRequest, BacktestResponse, DeliverableReportResponse
 
 __all__ = [
     "HealthResponse",
@@ -16,5 +17,8 @@ __all__ = [
     "SimulatorStatsResponse",
     "DemoSimulationRun",
     "TradeDirection",
-    "TradeOutcome"
+    "TradeOutcome",
+    "BacktestRequest",
+    "BacktestResponse",
+    "DeliverableReportResponse"
 ]
