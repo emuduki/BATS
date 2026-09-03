@@ -41,7 +41,8 @@ class HistoricalDataLoader:
         base_price = 1250.0
         
         # Generate realistic price series with drift
-        returns = np.random.randn(n_samples) * 0.0005
+        # Add drift to create directional movement (ensures enough valid labels)
+        returns = np.random.randn(n_samples) * 0.0005 + 0.0001  # +drift for bullish bias
         prices = base_price * np.cumprod(1 + returns)
         
         df = pd.DataFrame({
@@ -53,6 +54,48 @@ class HistoricalDataLoader:
             'volume': np.random.randint(100000, 1000000, n_samples)
         })
         
+        return df
+    
+    def load_yfinance_data(
+        self,
+        symbol: str = "^GDAXI",
+        period: str = "2y",
+        interval: str = "1m"
+    ) -> pd.DataFrame:
+        """
+        Load real market data using yfinance.
+        
+        Args:
+            symbol: Yahoo Finance ticker (e.g., "^GDAXI", "BTC-USD", "AAPL")
+            period: Data period (1d, 5d, 1mo, 3mo, 6mo, 1y, 2y, 5y, 10y, ytd, max)
+            interval: Data interval (1m, 2m, 5m, 15m, 30m, 60m, 90m, 1h, 1d, 5d, 1wk, 1mo)
+        
+        Returns:
+            DataFrame with OHLCV data compatible with BATS format
+        """
+        try:
+            import yfinance as yf
+        except ImportError:
+            raise ImportError("yfinance not installed. Run: pip install yfinance")
+        
+        print(f"Downloading {symbol} from yfinance...")
+        ticker = yf.Ticker(symbol)
+        df = ticker.history(period=period, interval=interval)
+        
+        if df.empty:
+            raise ValueError(f"No data returned for symbol {symbol}")
+        
+        # Rename columns to lowercase
+        df = df.reset_index()
+        df.columns = [c.lower() for c in df.columns]
+        
+        # yfinance uses 'date' or 'datetime' instead of 'timestamp'
+        if 'datetime' in df.columns:
+            df = df.rename(columns={'datetime': 'timestamp'})
+        elif 'date' in df.columns:
+            df = df.rename(columns={'date': 'timestamp'})
+        
+        print(f"Loaded {len(df)} rows of {symbol} data")
         return df
 
 

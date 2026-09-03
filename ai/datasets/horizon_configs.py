@@ -37,41 +37,50 @@ class HorizonConfig:
         }
 
 HORIZON_CONFIGS: Dict[str, HorizonConfig] = {
+    "15s": HorizonConfig(
+        name="15s",
+        horizon_seconds=15,
+        horizon_description="15-second expiry contracts",
+        label_threshold_pct=0.01,
+        min_feature_lookback=30,
+        min_training_samples=1000,
+        prediction_threshold=0.60
+    ),
     "30s": HorizonConfig(
         name="30s",
         horizon_seconds=30,
         horizon_description="30-second expiry contracts",
-        label_threshold_pct=0.05,
+        label_threshold_pct=0.01,
         min_feature_lookback=50,
-        min_training_samples=10000,
-        prediction_threshold=0.70
+        min_training_samples=5000,
+        prediction_threshold=0.60
     ),
     "60s": HorizonConfig(
         name="60s",
         horizon_seconds=60,
         horizon_description="60-second expiry contracts - most liquid",
-        label_threshold_pct=0.10,
+        label_threshold_pct=0.01,
         min_feature_lookback=60,
-        min_training_samples=5000,
-        prediction_threshold=0.70
+        min_training_samples=10000,
+        prediction_threshold=0.60
     ),
     "120s": HorizonConfig(
         name="120s",
         horizon_seconds=120,
         horizon_description="120-second expiry contracts",
-        label_threshold_pct=0.15,
+        label_threshold_pct=0.015,
         min_feature_lookback=100,
         min_training_samples=25000,
-        prediction_threshold=0.75
+        prediction_threshold=0.65
     ),
     "300s": HorizonConfig(
         name="300s",
         horizon_seconds=300,
         horizon_description="300-second (5-minute) expiry contracts",
-        label_threshold_pct=0.25,
+        label_threshold_pct=0.02,
         min_feature_lookback=200,
         min_training_samples=10000,
-        prediction_threshold=0.75
+        prediction_threshold=0.65
     ),
 }
 
