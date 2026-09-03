@@ -145,7 +145,7 @@ def trading_loop_background(
         max_risk_pct=1.0,
         daily_loss_limit=10.0,
         max_open_trades=3,
-        confidence_threshold=0.75,
+        confidence_threshold=0.55,
         cooldown_seconds=30,
         broker=broker,
         symbol=symbol

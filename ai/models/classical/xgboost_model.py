@@ -41,10 +41,13 @@ class XGBoostModel(BaseModel):
     ) -> ModelMetrics:
         """Train XGBoost model with validation."""
         if X_val is not None and y_val is not None:
+            try:
+                self.model.set_params(early_stopping_rounds=20)
+            except Exception:
+                pass
             self.model.fit(
                 X_train, y_train,
                 eval_set=[(X_val, y_val)],
-                early_stopping_rounds=20,
                 verbose=False
             )
         else:

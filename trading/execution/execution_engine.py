@@ -29,7 +29,7 @@ class BinaryTradingEngine:
                  max_drawdown_pct: float = 10.0,
                  daily_loss_limit: float = 10.0,     # Phase 5: Daily loss limit in USD
                  max_open_trades: int = 3,           # Phase 5: Maximum simultaneous trades
-                 confidence_threshold: float = 0.75, # Phase 5: Minimum confidence to trade
+                 confidence_threshold: float = 0.55, # Phase 5: Minimum confidence to trade
                  cooldown_seconds: int = 60,         # Phase 5: Cooldown after each trade
                  broker: Optional[BinaryBroker] = None,
                  symbol: str = "R_100"):
@@ -168,12 +168,16 @@ class BinaryTradingEngine:
         
         # Check risk validation
         direction_str = direction.value if direction else 'UP'
+        max_risk_amount = self.balance * (self.max_risk_pct / 100)
+        stake_amount = investment_amount if investment_amount is not None else min(confidence * 10, max_risk_amount)
+        if stake_amount <= 0:
+            stake_amount = max_risk_amount
         
         risk_result = self.risk_manager.validate_trade(
             signal_direction=direction_str,
             signal_confidence=confidence,
             entry_price=current_price,
-            recommended_stake=confidence * 100,  # Convert to dollar amount
+            recommended_stake=stake_amount,
             current_balance=self.balance,
             current_time=datetime.now()
         )
@@ -379,7 +383,7 @@ class RiskManager:
                  max_drawdown_pct: float = 10.0,
                  daily_loss_limit: float = 10.0,
                  max_open_trades: int = 3,
-                 confidence_threshold: float = 0.75,
+                 confidence_threshold: float = 0.55,
                  cooldown_seconds: int = 60):
         """
         Args:

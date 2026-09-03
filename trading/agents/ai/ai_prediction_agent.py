@@ -8,6 +8,7 @@ from typing import Dict, Any, List, Optional
 import numpy as np
 import pandas as pd
 import os
+from pathlib import Path
 from datetime import datetime
 
 from trading.agents.technical.technical_agent import AgentSignal, Direction
@@ -93,12 +94,24 @@ class AIPredictionAgent:
         
         for model_name, model_info in self.models.items():
             try:
-                if hasattr(model_info['model'], 'predict_proba'):
-                    pred = model_info['model'].predict_proba(X)
-                    preds = model_info['model'].predict(X)
+                model_obj = model_info['model']
+                model_features = X
+                
+                # If the trained model expects specific features, extract them
+                expected_cols = getattr(model_obj, 'feature_columns', None) or model_info.get('feature_columns')
+                if expected_cols is not None:
+                    try:
+                        from ai.dataset.feature_engineering import create_inference_features
+                        model_features, _ = create_inference_features(df, feature_columns=expected_cols)
+                    except Exception:
+                        pass
+
+                if hasattr(model_obj, 'predict_proba'):
+                    pred = model_obj.predict_proba(model_features)
+                    preds = model_obj.predict(model_features)
                 else:
                     # Handle models without predict_proba
-                    preds = model_info['model'].predict(X)
+                    preds = model_obj.predict(model_features)
                     pred = np.column_stack([1 - preds, preds])  # Approximate
                 
                 predictions.append(preds[0])
@@ -151,28 +164,48 @@ class AIPredictionAgent:
     
     def _load_models(self, model_path: Optional[str]) -> Dict[str, Any]:
         """Load trained models from disk or default location."""
-        # Try to load from model_path first
-        if model_path and os.path.exists(model_path):
-            return self._load_from_file(model_path)
+        models = {}
         
-        # Try to load from default model directory
-        default_paths = [
-            "ai/models/trained_models/current_models.json",
-            "ai/models/trained_models/latest_models.json",
-            "models/trained_models/current_models.json",
+        # Search directories for trained .pkl models
+        search_dirs = [
+            Path("ai/models"),
+            Path("models"),
+            Path("ai/models/trained_models")
         ]
+        if model_path:
+            search_dirs.insert(0, Path(model_path))
+
+        for directory in search_dirs:
+            if not directory.exists():
+                continue
+            for pkl_file in directory.glob("*_xgboost.pkl"):
+                model_name = pkl_file.stem
+                if model_name not in models:
+                    try:
+                        from ai.models.classical.xgboost_model import XGBoostModel, create_xgboost_config
+                        horizon = model_name.split("_")[0]
+                        config = create_xgboost_config(horizon)
+                        model = XGBoostModel(config)
+                        model.load(str(pkl_file))
+                        models[model_name] = {
+                            "model": model,
+                            "type": "XGBoost",
+                            "version": getattr(model.config, 'version', 'v1.0'),
+                            "feature_columns": getattr(model, 'feature_columns', None),
+                            "horizon": horizon
+                        }
+                    except Exception as e:
+                        print(f"Warning: Failed to load {pkl_file}: {e}")
+
+        if models:
+            return models
         
-        for path in default_paths:
-            if os.path.exists(path):
-                return self._load_from_file(path)
-        
-        # Return default models for testing
+        # Return fallback dummy models for testing if no models on disk
         return self._create_default_models()
     
     def _load_from_file(self, path: str) -> Dict[str, Any]:
-        """Load models from JSON file."""
-        # For now, return default models
-        return self._create_default_models()
+        """Load models from JSON or pickle file."""
+        return self._load_models(path)
     
     def _create_default_models(self) -> Dict[str, Any]:
         """Create default models for testing."""
@@ -202,27 +235,35 @@ class AIPredictionAgent:
         return "v1.0"
     
     def _prepare_features(self, df: pd.DataFrame) -> np.ndarray:
-        """Prepare features for model input."""
-        # This should match the feature engineering used during training
-        # For now, create dummy features
-        from trading.dataset.feature_engineering import create_features
-        
+        """Prepare features for model input matching Phase 3 schema."""
+        # Check if any loaded model specifies its required feature columns
+        feature_cols = None
+        for info in self.models.values():
+            cols = info.get("feature_columns")
+            if cols:
+                feature_cols = cols
+                break
+
         try:
+            from ai.dataset.feature_engineering import create_inference_features
+            X, _ = create_inference_features(df, feature_columns=feature_cols)
+            return X
+        except Exception:
+            pass
+
+        # Fallback to standard feature creation
+        try:
+            from trading.dataset.feature_engineering import create_features
             df_features = create_features(df)
-            # Select features used during training
             feature_cols = [
                 'close', 'rsi', 'macd', 'bb_upper', 'bb_lower', 
                 'volume', 'sma_20', 'sma_50'
             ]
-            
             available_features = [col for col in feature_cols if col in df_features.columns]
             X = df_features[available_features].dropna().values
-            return X[-1:].reshape(1, -1)  # Use most recent data point
-            
+            return X[-1:].reshape(1, -1)
         except Exception:
-            # Fallback: create dummy features
-            n_features = 20
-            return np.random.randn(1, n_features).astype(np.float32)
+            return np.random.randn(1, 22).astype(np.float32)
     
     def _ensemble_predict(self, predictions: np.ndarray) -> int:
         """Ensemble prediction using weighted voting."""

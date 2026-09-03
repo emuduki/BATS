@@ -37,6 +37,23 @@ def calculate_microstructure_features(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def calculate_horizon_shift(df: pd.DataFrame, horizon_seconds: int) -> int:
+    """Calculate candle shift steps corresponding to the horizon."""
+    if 'timestamp' in df.columns and len(df) > 1:
+        try:
+            ts = pd.to_datetime(df['timestamp'])
+            dt = (ts.diff().dt.total_seconds()).median()
+            if dt and dt > 0:
+                steps = max(1, int(round(horizon_seconds / dt)))
+                return steps
+        except Exception:
+            pass
+    # If 1m data or undefined, 15-60s corresponds to 1 candle ahead
+    if horizon_seconds <= 60:
+        return 1
+    return max(1, horizon_seconds // 60)
+
+
 def apply_label_threshold(df: pd.DataFrame, config: HorizonConfig) -> pd.DataFrame:
     """
     Apply meaningful movement threshold to create labels.
@@ -49,8 +66,9 @@ def apply_label_threshold(df: pd.DataFrame, config: HorizonConfig) -> pd.DataFra
     df = df.copy()
     
     threshold = config.label_threshold_pct
-    df['future_close'] = df['close'].shift(-config.horizon_seconds)
-    df['future_return'] = (df['future_close'] - df['close']) / df['close']
+    shift_steps = calculate_horizon_shift(df, config.horizon_seconds)
+    df['future_close'] = df['close'].shift(-shift_steps)
+    df['future_return'] = (df['future_close'] - df['close']) / (df['close'] + 1e-10)
     
     conditions = [
         df['future_return'] > threshold,
@@ -70,10 +88,18 @@ def filter_valid_labels(df: pd.DataFrame) -> pd.DataFrame:
     return df[df['label'] != -1].copy()
 
 
-def create_all_features(df: pd.DataFrame, config: HorizonConfig) -> pd.DataFrame:
-    """Create complete feature set for horizon-aware training."""
+def create_feature_indicators(df: pd.DataFrame, config: Optional[HorizonConfig] = None) -> pd.DataFrame:
+    """Calculate indicators and technical features without labels."""
+    df = df.copy()
+    
     # Basic price features
-    df = calculate_returns(df, [1, 3, 5, 10, 15, config.horizon_seconds])
+    df = calculate_returns(df, [1, 3, 5, 10, 15])
+    
+    # Generate return columns for all standard horizons so any horizon model finds its column
+    from ai.datasets.horizon_configs import HORIZON_CONFIGS
+    for h_name, h_cfg in HORIZON_CONFIGS.items():
+        shift_steps = calculate_horizon_shift(df, h_cfg.horizon_seconds)
+        df[f'return_h{h_cfg.horizon_seconds}'] = df['close'].pct_change(shift_steps)
     
     # Technical indicators
     from trading.indicators.technical import add_all_indicators
@@ -85,32 +111,67 @@ def create_all_features(df: pd.DataFrame, config: HorizonConfig) -> pd.DataFrame
     # Microstructure
     df = calculate_microstructure_features(df)
     
+    return df
+
+
+def create_all_features(df: pd.DataFrame, config: HorizonConfig) -> pd.DataFrame:
+    """Create complete feature set with labels for horizon-aware training."""
+    df = create_feature_indicators(df, config)
+    
     # Apply horizon-specific labeling
     df = apply_label_threshold(df, config)
     
     # Filter out non-significant movements
     df = filter_valid_labels(df)
     
-    return df.dropna(subset=[
-        'return_1', 'return_3', 'return_5', f'return_{config.horizon_seconds}',
+    core_cols = [
+        'return_1', 'return_3', 'return_5',
         'ema_9', 'ema_21', 'rsi_14', 'macd_line', 'macd_signal', 'macd_hist',
         'close_position', 'body_size', 'volume_ratio', 'label'
-    ])
+    ]
+    avail_cols = [c for c in core_cols if c in df.columns]
+    df = df.dropna(subset=avail_cols)
+    return df
 
 
 def get_feature_columns(df: pd.DataFrame, include_price_context: bool = False) -> List[str]:
-    """Get list of feature columns for model training."""
+    """Get list of feature columns for model training in deterministic order."""
     exclude = {'timestamp', 'open', 'high', 'low', 'close', 'volume', 
                'label', 'target_probability', 'future_close', 'future_return',
                'symbol', 'timeframe'}
     
-    features = [c for c in df.columns if c not in exclude]
+    features = sorted([c for c in df.columns if c not in exclude])
     
     if include_price_context:
         price_cols = ['open', 'high', 'low', 'close']
         features = sorted(set(features + price_cols))
     
     return features
+
+
+def create_inference_features(df: pd.DataFrame, config: Optional[HorizonConfig] = None, feature_columns: Optional[List[str]] = None) -> Tuple[np.ndarray, List[str]]:
+    """
+    Prepare feature vector for real-time inference (no future labels required).
+    
+    Returns:
+        X: 2D numpy array shaped (1, n_features) for the latest candle.
+        feature_cols: list of column names.
+    """
+    df_features = create_feature_indicators(df, config)
+    
+    if feature_columns:
+        cols = list(feature_columns)
+        for c in cols:
+            if c not in df_features.columns:
+                df_features[c] = 0.0
+    else:
+        cols = get_feature_columns(df_features)
+    
+    # Forward fill then backward fill any indicator warm-up NaNs
+    df_features[cols] = df_features[cols].ffill().bfill().fillna(0.0)
+    
+    latest_row = df_features[cols].iloc[-1:].values.astype(np.float32)
+    return latest_row, cols
 
 
 def prepare_horizon_dataset(df: pd.DataFrame, horizon_name: str) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:

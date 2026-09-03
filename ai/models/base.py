@@ -28,6 +28,12 @@ class ModelMetrics:
     max_drawdown: float = 0.0
     sharpe_ratio: float = 0.0
     
+    def update(self, other: 'ModelMetrics') -> None:
+        """Update metrics from another ModelMetrics instance."""
+        for k, v in other.__dict__.items():
+            if not k.startswith('_') and v is not None:
+                setattr(self, k, v)
+
     def to_dict(self) -> Dict[str, float]:
         return {k: v for k, v in self.__dict__.items() if not k.startswith('_')}
     
@@ -61,6 +67,7 @@ class BaseModel(ABC):
         self.metrics = ModelMetrics()
         self.calibrator = None
         self.feature_importance_: Optional[np.ndarray] = None
+        self.feature_columns: Optional[list] = None
     
     @abstractmethod
     def train(
@@ -119,7 +126,8 @@ class BaseModel(ABC):
             'config': self.config,
             'metrics': self.metrics,
             'calibrator': self.calibrator,
-            'feature_importance': self.feature_importance_
+            'feature_importance': self.feature_importance_,
+            'feature_columns': self.feature_columns
         }, path)
     
     def load(self, path: str) -> None:
@@ -130,6 +138,7 @@ class BaseModel(ABC):
         self.metrics = data['metrics']
         self.calibrator = data.get('calibrator')
         self.feature_importance_ = data.get('feature_importance')
+        self.feature_columns = data.get('feature_columns')
         self.is_trained = True
     
     def get_feature_importance(self) -> Optional[np.ndarray]:

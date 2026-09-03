@@ -182,7 +182,7 @@ class DemoBroker(BinaryBroker):
         
         proposal_id = f"PROP_{uuid.uuid4().hex[:12]}"
         
-        return Proposal(
+        proposal = Proposal(
             proposal_id=proposal_id,
             contract_spec=ContractSpec(
                 contract_type=contract_type,
@@ -211,6 +211,8 @@ class DemoBroker(BinaryBroker):
                 "spot": market_data.spot
             }
         )
+        self._proposals[proposal_id] = proposal
+        return proposal
     
     async def buy_contract(self, proposal_id: str) -> Contract:
         if not self._connected:
@@ -250,12 +252,12 @@ class DemoBroker(BinaryBroker):
             buy_price=proposal.stake,
             payout=proposal.payout,
             stake=proposal.stake,
-            symbol=proposal.symbol,
+            symbol=proposal.contract_spec.symbol if hasattr(proposal, 'contract_spec') else getattr(proposal, 'symbol', 'R_100'),
             direction=proposal.direction,
             duration=proposal.duration,
             entry_spot=proposal.spot_price,
             expiry_time=expiry_time,
-            status=OrderStatus.PROCESSING,
+            status=OrderStatus.PURCHASED,
             raw_response={
                 "contract_id": contract_id,
                 "proposal_id": proposal_id,

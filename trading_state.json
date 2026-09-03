@@ -6,13 +6,13 @@
   "total_trades": 0,
   "winning_trades": 0,
   "last_signal": {
-    "timestamp": "2026-09-03T15:34:32.230027",
+    "timestamp": "2026-09-03T18:15:39.769668",
     "symbol": "R_100",
     "direction": null,
-    "confidence": 0.0,
-    "duration": 120,
+    "confidence": 0.16522799999999999,
+    "duration": 30,
     "action": "NO_TRADE",
-    "reason": "Insufficient confidence (max: 0%)"
+    "reason": "Insufficient consensus (UP: 0.17, DOWN: 0.00)"
   },
   "last_trade": null,
   "risk_status": {
@@ -23,6 +23,6 @@
     "open_trades": 0,
     "can_trade": true
   },
-  "session_started": "2026-09-03T13:28:54.741103",
-  "updated_at": "2026-09-03T15:34:32.230038"
+  "session_started": "2026-09-03T18:14:07.300413",
+  "updated_at": "2026-09-03T18:15:39.769687"
 }

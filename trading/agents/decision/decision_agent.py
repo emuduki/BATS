@@ -65,7 +65,7 @@ class DecisionAgent:
         }
         
         # Thresholds for decision making
-        self.min_confidence_threshold = 0.60
+        self.min_confidence_threshold = 0.55
         self.consensus_threshold = 0.55  # Minimum weighted agreement needed
         self.regime_filter_strength = 0.3  # How much regime can override other signals
     
@@ -127,25 +127,30 @@ class DecisionAgent:
         up_score *= regime_multiplier
         down_score *= regime_multiplier
         
+        # Normalize scores by total directional weights so consensus is on [0.0, 1.0] scale
+        total_dir_weight = self.agent_weights["technical"] + self.agent_weights["ai"]
+        norm_up_score = (up_score / total_dir_weight) if total_dir_weight > 0 else up_score
+        norm_down_score = (down_score / total_dir_weight) if total_dir_weight > 0 else down_score
+
         # Determine final direction
-        if up_score > down_score and up_score >= self.min_confidence_threshold:
+        if norm_up_score > norm_down_score and norm_up_score >= self.min_confidence_threshold:
             final_direction = Direction.UP
-            confidence = min(0.95, up_score)
+            confidence = min(0.95, norm_up_score)
             action = Decision.TRADE_UP
             reason = f"Consensus bullish: Tech({tech_contrib['strength']:.2f}) + AI({ai_contrib['strength']:.2f}) × Regime({regime_multiplier:.2f})"
-        elif down_score > up_score and down_score >= self.min_confidence_threshold:
+        elif norm_down_score > norm_up_score and norm_down_score >= self.min_confidence_threshold:
             final_direction = Direction.DOWN
-            confidence = min(0.95, down_score)
+            confidence = min(0.95, norm_down_score)
             action = Decision.TRADE_DOWN
             reason = f"Consensus bearish: Tech({tech_contrib['strength']:.2f}) + AI({ai_contrib['strength']:.2f}) × Regime({regime_multiplier:.2f})"
         else:
             return FinalDecision(
                 action=Decision.NO_TRADE,
                 direction=None,
-                confidence=max(up_score, down_score),
+                confidence=max(norm_up_score, norm_down_score),
                 duration_seconds=duration_recommendation.duration_seconds,
                 duration_label=duration_recommendation.duration_label,
-                reason=f"Insufficient consensus (UP: {up_score:.2f}, DOWN: {down_score:.2f})",
+                reason=f"Insufficient consensus (UP: {norm_up_score:.2f}, DOWN: {norm_down_score:.2f})",
                 agent_contributions={
                     "technical": tech_contrib,
                     "regime": regime_contrib,

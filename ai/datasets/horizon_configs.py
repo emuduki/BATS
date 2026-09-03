@@ -41,56 +41,56 @@ HORIZON_CONFIGS: Dict[str, HorizonConfig] = {
         name="15s",
         horizon_seconds=15,
         horizon_description="15-second expiry contracts",
-        label_threshold_pct=0.01,
+        label_threshold_pct=0.0001,
         min_feature_lookback=30,
         min_training_samples=1000,
-        prediction_threshold=0.60
+        prediction_threshold=0.55
     ),
     "30s": HorizonConfig(
         name="30s",
         horizon_seconds=30,
         horizon_description="30-second expiry contracts",
-        label_threshold_pct=0.01,
-        min_feature_lookback=50,
-        min_training_samples=5000,
-        prediction_threshold=0.60
+        label_threshold_pct=0.0001,
+        min_feature_lookback=30,
+        min_training_samples=1000,
+        prediction_threshold=0.55
     ),
     "60s": HorizonConfig(
         name="60s",
         horizon_seconds=60,
         horizon_description="60-second expiry contracts - most liquid",
-        label_threshold_pct=0.01,
-        min_feature_lookback=60,
-        min_training_samples=10000,
-        prediction_threshold=0.60
+        label_threshold_pct=0.0001,
+        min_feature_lookback=30,
+        min_training_samples=1000,
+        prediction_threshold=0.55
     ),
     "120s": HorizonConfig(
         name="120s",
         horizon_seconds=120,
         horizon_description="120-second expiry contracts",
-        label_threshold_pct=0.015,
-        min_feature_lookback=100,
-        min_training_samples=25000,
-        prediction_threshold=0.65
+        label_threshold_pct=0.0002,
+        min_feature_lookback=50,
+        min_training_samples=1000,
+        prediction_threshold=0.55
     ),
     "300s": HorizonConfig(
         name="300s",
         horizon_seconds=300,
         horizon_description="300-second (5-minute) expiry contracts",
-        label_threshold_pct=0.02,
-        min_feature_lookback=200,
-        min_training_samples=10000,
-        prediction_threshold=0.65
+        label_threshold_pct=0.0005,
+        min_feature_lookback=50,
+        min_training_samples=1000,
+        prediction_threshold=0.55
     ),
 }
 
 def validate_config(config: HorizonConfig) -> bool:
     """Validate horizon configuration parameters"""
-    if config.horizon_seconds < 30:
+    if config.horizon_seconds < 10:
         return False
     if not 0 <= config.label_threshold_pct <= 0.1:
         return False
-    if config.min_training_samples < 1000:
+    if config.min_training_samples < 100:
         return False
     if not 0 <= config.prediction_threshold <= 1.0:
         return False

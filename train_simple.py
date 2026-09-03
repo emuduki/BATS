@@ -48,28 +48,38 @@ def main():
     print(f"Data loaded: {len(df)} rows")
 
     config = create_xgboost_config(args.horizon)
-    model = XGBoostModel(config)
-
     pipeline = DataPreparationPipeline(loader)
     try:
         data_info = pipeline.prepare_training_data(df, args.horizon)
-        print(f"Training samples: {len(data_info['X_train'])}")
+        print(f"Training samples: {len(data_info['X_train'])}, Validation: {len(data_info['X_val'])}, Features: {data_info['feature_count']}")
     except ValueError as e:
         print(f"Error preparing data: {e}")
         print("Try using synthetic data with --synthetic flag")
         return
 
+    config.feature_count = data_info['feature_count']
+    model = XGBoostModel(config)
+    model.feature_columns = data_info['feature_columns']
+
     metrics = model.train(data_info['X_train'], data_info['y_train'],
                          data_info['X_val'], data_info['y_val'])
+
+    if len(data_info['X_val']) > 20:
+        try:
+            model.calibrate(data_info['X_val'], data_info['y_val'])
+            print("Model probability calibration completed.")
+        except Exception as ce:
+            print(f"Calibration warning (skipped): {ce}")
 
     print(f"\nAccuracy:  {metrics.accuracy:.4f}")
     print(f"ROC-AUC:   {metrics.roc_auc:.4f}")
     print(f"Win Rate:  {metrics.win_rate:.4f}")
 
-    os.makedirs('ai/models', exist_ok=True)
-    model_path = f'ai/models/{args.horizon}_xgboost.pkl'
-    model.save(model_path)
-    print(f"\nModel saved to: {model_path}")
+    for target_dir in ['ai/models', 'models']:
+        os.makedirs(target_dir, exist_ok=True)
+        model_path = os.path.join(target_dir, f'{args.horizon}_xgboost.pkl')
+        model.save(model_path)
+        print(f"Model saved to: {model_path}")
 
 
 if __name__ == "__main__":
