@@ -24,6 +24,36 @@ class AIPrediction:
     timestamp: datetime = None
 
 
+class DummyModel:
+    """Mock ML model for testing and fallback when trained models are unavailable."""
+    
+    def __init__(self, name: str = "dummy", bias: float = 0.0):
+        self.name = name
+        self.bias = bias
+        
+    def predict_proba(self, X: np.ndarray) -> np.ndarray:
+        """Return [P(DOWN), P(UP)]."""
+        prob_up = 0.5 + self.bias
+        try:
+            # Feature columns: ['close', 'rsi', 'macd', 'bb_upper', 'bb_lower', 'volume', 'sma_20', 'sma_50']
+            if X is not None and len(X) > 0 and X.shape[1] >= 3:
+                rsi = X[0, 1]
+                macd = X[0, 2]
+                if not np.isnan(rsi):
+                    rsi_delta = (rsi - 50.0) / 100.0  # -0.5 to +0.5
+                    macd_contrib = 0.1 if macd > 0 else (-0.1 if macd < 0 else 0.0)
+                    prob_up = float(np.clip(0.5 + 0.3 * rsi_delta + macd_contrib + self.bias, 0.1, 0.9))
+        except Exception:
+            pass
+        p_down = 1.0 - prob_up
+        return np.array([[p_down, prob_up]])
+
+    def predict(self, X: np.ndarray) -> np.ndarray:
+        """Return 1 for UP, 0 for DOWN."""
+        probs = self.predict_proba(X)
+        return np.array([1 if probs[0, 1] >= 0.5 else 0])
+
+
 class AIPredictionAgent:
     """
     AI Prediction Agent
@@ -90,24 +120,25 @@ class AIPredictionAgent:
         prob_array = np.array(probabilities)
         
         # Weighted voting based on model performance
-        final_pred = self._ensemble_predict(pred_array)
         final_prob = self._ensemble_probability(prob_array)
         
         # Convert to our format
-        direction = Direction.UP if final_pred == 1 else Direction.DOWN
-        confidence = final_prob[1] if final_pred == 1 else final_prob[0]
-        
-        # Generate explanation
-        confidence_percent = int(confidence * 100)
-        direction_str = direction.value
-        down_percent = 100 - confidence_percent
-        
+        p_up = float(final_prob[1]) if len(final_prob) > 1 else float(final_prob[0])
+        p_down = 1.0 - p_up
+
+        if p_up >= 0.5:
+            direction = Direction.UP
+            confidence = p_up
+        else:
+            direction = Direction.DOWN
+            confidence = p_down
+
         return AIPrediction(
             direction=direction,
             confidence=round(confidence, 4),
             probabilities={
-                "UP": round(confidence, 4),
-                "DOWN": round(1 - confidence, 4)
+                "UP": round(p_up, 4),
+                "DOWN": round(p_down, 4)
             },
             model_type=f"{len(self.models)}_ensemble_v{self.current_model_version}",
             model_metadata={
@@ -140,7 +171,6 @@ class AIPredictionAgent:
     
     def _load_from_file(self, path: str) -> Dict[str, Any]:
         """Load models from JSON file."""
-        # This would be implemented based on how models are saved
         # For now, return default models
         return self._create_default_models()
     
@@ -161,17 +191,14 @@ class AIPredictionAgent:
     
     def _create_dummy_lstm(self):
         """Create dummy LSTM model for testing."""
-        from sklearn.dummy import DummyClassifier
-        return DummyClassifier(strategy="constant", constant=0.5)
+        return DummyModel(name="LSTM_v1", bias=0.02)
     
     def _create_dummy_xgboost(self):
         """Create dummy XGBoost model for testing."""
-        from sklearn.dummy import DummyClassifier
-        return DummyClassifier(strategy="constant", constant=0.5)
+        return DummyModel(name="XGBoost_v1", bias=-0.01)
     
     def _get_latest_model_version(self) -> str:
         """Get latest model version."""
-        # This would check for the newest trained model
         return "v1.0"
     
     def _prepare_features(self, df: pd.DataFrame) -> np.ndarray:
