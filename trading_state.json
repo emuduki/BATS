@@ -1,0 +1,28 @@
+{
+  "balance": 100.0,
+  "daily_pnl": 0.0,
+  "win_rate": 0.0,
+  "active_trades": 0,
+  "total_trades": 0,
+  "winning_trades": 0,
+  "last_signal": {
+    "timestamp": "2026-09-03T13:35:59.616833",
+    "symbol": "R_100",
+    "direction": null,
+    "confidence": 0.0,
+    "duration": 120,
+    "action": "NO_TRADE",
+    "reason": "Insufficient confidence (max: 0%)"
+  },
+  "last_trade": null,
+  "risk_status": {
+    "is_paused": false,
+    "pause_reason": "",
+    "daily_loss_amount": 0.0,
+    "consecutive_losses": 0,
+    "open_trades": 0,
+    "can_trade": true
+  },
+  "session_started": "2026-09-03T13:28:54.741103",
+  "updated_at": "2026-09-03T13:35:59.616842"
+}
